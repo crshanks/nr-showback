@@ -21,6 +21,16 @@ locals {
       tf_core_user_usd = var.showback_price.core_user_usd
       tf_full_user_usd = var.showback_price.full_user_usd
       tf_gb_ingest_usd = var.showback_price.gb_ingest_usd
+      tf_core_user_committed_usd = var.showback_price.core_user_committed_usd
+      tf_full_user_committed_usd = var.showback_price.full_user_committed_usd
+      tf_gb_ingest_committed_usd = var.showback_price.gb_ingest_committed_usd
+      tf_core_user_additional_usd = var.showback_price.core_user_additional_usd
+      tf_full_user_additional_usd = var.showback_price.full_user_additional_usd
+      tf_gb_ingest_additional_usd = var.showback_price.gb_ingest_additional_usd
+      tf_min_core_users = var.showback_price.min_core_users
+      tf_min_full_users = var.showback_price.min_full_users
+      tf_min_gb_ingest = var.showback_price.min_gb_ingest
+      tf_prorate_minimums = var.showback_price.prorate_minimums
       tf_unique_tiers = local.unique_tiers
       tf_unique_accounts = local.unique_accounts
     }

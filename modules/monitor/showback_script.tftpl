@@ -12,6 +12,8 @@ if (IS_LOCAL_ENV) {
   require("../lib/simulator");
 }
 
+const got = require('got');
+
 const region = '${tf_new_relic_region}';  // 'US' | 'EU'
 if (region === 'US') {
   var nerdGraphEndpoint = 'https://api.newrelic.com/graphql';
