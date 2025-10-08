@@ -1,4 +1,4 @@
-[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](http#### **How Minimum Commitment Pricing Works**
+[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)lic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](http#### **How Minimum Commitment Pricing Works**
 - **Committed Cost**: `minimum_amount × committed_rate`
 - **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
 - **Total Cost**: `committed_cost + additional_cost`
@@ -39,7 +39,7 @@ showback_price = {
   full_user_committed_usd = 315
   gb_ingest_committed_usd = 0.35
   
-  # Additional rates (standard cost for overage)
+  # Additional rates (standard cost for additional usage)
   core_user_additional_usd = 49
   full_user_additional_usd = 310
   gb_ingest_additional_usd = 0.35
@@ -113,7 +113,7 @@ showback_price = {
 ```
 
 ### 2. **Minimum Commitment Pricing** (New)
-Enterprise contract pricing with committed minimums and overage rates:
+Enterprise contract pricing with committed minimums and additional rates:
 #### 2. **Minimum Commitment Pricing** (New)
 Enterprise contract pricing with committed minimums and additional rates:
 ```hcl
@@ -145,12 +145,12 @@ showback_price = {
 
 ### **How Minimum Commitment Pricing Works**
 - **Committed Cost**: `minimum_amount × committed_rate`
-- **Overage Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
-- **Total Cost**: `committed_cost + overage_cost`
+- **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
+- **Total Cost**: `committed_cost + additional_cost`
 
 **Example**: With 12 core users (10 minimum at $45, 2 additional at $49):
 - Committed: 10 × $45 = $450
-- Overage: 2 × $49 = $98  
+- Additional: 2 × $49 = $98  
 - Total: $548
 
 ### **Key Features**
