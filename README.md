@@ -1,13 +1,52 @@
-[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)
+[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)lic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](http#### **How Minimum Commitment Pricing Works**
+- **Committed Cost**: `minimum_amount × committed_rate`
+- **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
+- **Total Cost**: `committed_cost + additional_cost`
+
+**Example**: With 12 core users (10 minimum at $45, 2 additional at $49):
+- Committed: 10 × $45 = $450
+- Additional: 2 × $49 = $98  
+- Total: $548ource.newrelic.com/oss-category/#new-relic-experimental)
 # nr-showback
 
-This repository provides an automated way to report New Relic ingest consumption and user costs, by business department, using aggregated account-based cost allocation.
+This repository provides an automated way to report New Relic ingest consumption and user costs, by business department, using aggregated account-based cost allocation. **Now with support for minimum commitment pricing** for enterprise contract billing models.
 
 ![Data flow diagram](screenshots/nr-showback-data-flow-diagram.png)
 
-A single [terraform.tfvars](terraform.tfvars) file contains the definition of departments within a business, a customer’s prices for ingest and user consumption, and the ability to ignore certain groups. Applying the terraform via a wrapper script creates a synthetics script, secure credentials containing API keys, and an associated dashboard. Once every 24 hours, the synthetics script queries the New Relic GraphQL API for a customer’s organization and user management data structures. Based upon a model of hierarchical account-based cost allocation, showback data is posted into NRDB as metrics, and user data as custom events. To view the showback data, customers access a dashboard that is built, and kept in sync with the departmental definitions, by terraform configuration.
+A single [terraform.tfvars](terraform.tfvars) file contains the definition of departments within a business, a customer's prices for ingest and user consumption, minimum commitment amounts, and the ability to ignore certain groups. Applying the terraform via a wrapper script creates a synthetics script, secure credentials containing API keys, and an associated dashboard. Once every 24 hours, the synthetics script queries the New Relic GraphQL API for a customer's organization and user management data structures. Based upon a model of hierarchical account-based cost allocation, showback data is posted into NRDB as metrics, and user data as custom events. To view the showback data, customers access a dashboard that is built, and kept in sync with the departmental definitions, by terraform configuration.
 
 ![Example dashboard](screenshots/nr-showback-dashboard.png)
+
+## ✨ New: Minimum Commitment Pricing
+
+This solution now supports **minimum commitment pricing models** commonly used in enterprise New Relic contracts:
+
+- **Committed Rates**: Different pricing for committed minimums vs. additional usage
+- **Flexible Minimums**: Set minimum committed users and data ingest amounts
+- **Automatic Calculations**: Dashboard automatically calculates committed costs + additional costs
+- **Backward Compatible**: Existing configurations continue to work unchanged
+
+### Quick Example
+```hcl
+showback_price = {
+  # Minimum commitments
+  min_core_users = 4      # 4 core users minimum
+  min_full_users = 9      # 9 full users minimum  
+  min_gb_ingest = 2500    # 2500GB ingest minimum
+  
+  # Committed rates (lower cost for minimums)
+  core_user_committed_usd = 49
+  full_user_committed_usd = 315
+  gb_ingest_committed_usd = 0.35
+  
+  # Additional rates (standard cost for additional usage)
+  core_user_additional_usd = 49
+  full_user_additional_usd = 310
+  gb_ingest_additional_usd = 0.35
+}
+```
+
+**Result**: Pay committed rates for minimums, then standard rates for any usage above minimums.
 
 ## Will it work for *us*?
 ### Good fit
@@ -61,6 +100,68 @@ The showback configuration is entirely within the terraform.tfvars file. Copy [t
 
 The expectation with the tier value is that all accounts are separately mapped to one or more reporting units. Any additional tiers will be displayed on a separate page on the dashboard with the page title set to the tier name, e.g. 'Reporting Unit'.
 
+## 💰 Pricing Models
+
+### 1. **Simple Pricing** (Original)
+Basic per-unit pricing for straightforward billing:
+```hcl
+showback_price = {
+  core_user_usd = 49        # $49 per core user
+  full_user_usd = 99        # $99 per full user  
+  gb_ingest_usd = 0.30      # $0.30 per GB ingest
+}
+```
+
+### 2. **Minimum Commitment Pricing** (New)
+Enterprise contract pricing with committed minimums and additional rates:
+#### 2. **Minimum Commitment Pricing** (New)
+Enterprise contract pricing with committed minimums and additional rates:
+```hcl
+showback_price = {
+  # Legacy rates (used as fallback)
+  core_user_usd = 49
+  full_user_usd = 99  
+  gb_ingest_usd = 0.30
+  
+  # Minimum commitments
+  min_core_users = 10       # Minimum 10 core users
+  min_full_users = 5        # Minimum 5 full users
+  min_gb_ingest = 1000      # Minimum 1000GB ingest
+  
+  # Committed rates (discounted pricing for minimums)
+  core_user_committed_usd = 45
+  full_user_committed_usd = 90
+  gb_ingest_committed_usd = 0.25
+  
+  # Additional rates (standard pricing for additional usage)
+  core_user_additional_usd = 49
+  full_user_additional_usd = 99
+  gb_ingest_additional_usd = 0.30
+  
+  # Optional: prorate minimums for partial months
+  prorate_minimums = false
+}
+```
+
+### **How Minimum Commitment Pricing Works**
+- **Committed Cost**: `minimum_amount × committed_rate`
+- **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
+- **Total Cost**: `committed_cost + additional_cost`
+
+**Example**: With 12 core users (10 minimum at $45, 2 additional at $49):
+- Committed: 10 × $45 = $450
+- Additional: 2 × $49 = $98  
+- Total: $548
+
+### **Key Features**
+- ✅ **Backward Compatible**: Existing configurations continue to work unchanged
+- ✅ **Flexible Pricing**: Different rates for committed vs. additional usage
+- ✅ **Enterprise Ready**: Supports complex contract pricing models
+- ✅ **Automatic Calculations**: Dashboard handles all commitment logic
+- ✅ **Validation**: Terraform ensures configuration correctness
+
+See [terraform.tfvars.minimum-commit-example](terraform.tfvars.minimum-commit-example) for a complete working example.
+
 ## Initialization
 Use the `runtf.sh` helper script wherever you would normally run `terraform`. It simply wraps the terraform with some environment variables that make it easier to switch between projects. (You don't have to do it this way, you could just set the env vars and run terraform normally.)
 
@@ -85,18 +186,58 @@ The synthetics script, default name NR Showback reporting script, posts four typ
 4. `Showback_AccountUsers` custom events, containing an event per user, per role, per account.
 
 ## Dashboard reporting
-The dashboard, default name `NR Showback reporting`, contains three pages:
+The dashboard, default name `NR Showback reporting`, contains three pages with **enhanced cost calculations** that automatically support both simple and minimum commitment pricing:
+
 1. `Department Showback` (shown above)
-- A breakdown of costs, both ingest and user per department
-- Widgets showing the breakdown of users by type per department
-- A table showing the monthly ingest and user consumption at the billing account level
+- **Cost breakdown** by department with automatic commitment/additional calculations
+- **Pie charts** showing cost distribution across departments
+- **Detailed table** with individual cost components (Core, Full, Ingest costs)
+- **User distribution** widgets showing breakdown by type per department  
+- **Monthly trending** table showing historical consumption with commitment-based billing
 2. `Account Users (Summary)`
-- A tabular breakdown of users per account
-- User type counts over time
-- A table listing each unique user in the organization (all authentication domains) by email address, along with each department they are allocated against
-3. `Account Users (All Accounts)`
-- A repeat of the tabular breakdown of users per account
-- A full list of each user and every role, for every account they have access to
+- **Tabular breakdown** of users per account with cost implications
+- **User type distribution** charts showing % breakdown and trends over time
+- **Unique users table** listing each user by email address with department allocations
+3. `Account Users (All Accounts)`  
+- **Account overview** with user count summaries
+- **Comprehensive user list** showing every user, role, and account access
+
+### **Enhanced Cost Features**
+All cost calculations automatically adapt based on your pricing configuration:
+- **Simple pricing**: Direct multiplication of usage × rates
+- **Commitment pricing**: Committed minimums + additional calculations
+- **Mixed scenarios**: Handles partial commitments (e.g., only Core user minimums)
+- **Real-time updates**: Dashboard reflects current pricing model without modification
+
+## 🔧 Technical Implementation
+
+### **Files Modified for Minimum Commitment Support**
+1. **`variables.tf`** - Enhanced pricing variable definitions with validation
+2. **`terraform.tfvars.sample`** - Updated sample configuration with examples
+3. **`dashboard.tf`** - Extended template variable passing for new pricing parameters
+4. **`dashboards/dashboard.json.tftpl`** - Advanced NRQL cost calculations with conditional logic
+5. **`terraform.tfvars.minimum-commit-example`** - Complete working example (new)
+
+### **NRQL Implementation Details**
+The dashboard uses sophisticated NRQL queries with conditional logic:
+```sql
+-- Example: Core user cost calculation
+(${tf_min_core_users} * ${tf_core_user_committed_usd} + 
+ if(max(core_user_count) > ${tf_min_core_users}, 
+    (max(core_user_count) - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0))
+```
+
+This automatically:
+- ✅ Calculates committed cost for minimums
+- ✅ Adds additional cost for usage above minimums  
+- ✅ Handles edge cases (usage below minimums)
+- ✅ Maintains backward compatibility with simple pricing
+
+### **Validation & Safety**
+- **Terraform validation** ensures minimum commitments are non-negative
+- **Configuration validation** requires both committed and additional rates when minimums are set
+- **NRQL error handling** prevents negative additional costs and division by zero
+- **Backward compatibility** preserved for existing configurations
 
 # Support
 

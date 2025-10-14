@@ -1,6 +1,6 @@
 {
   "name": "${tf_dashboard_name}",
-  "description": null,
+  "description": "Updated with minimum commitment pricing",
   "permissions": "PUBLIC_READ_WRITE",
   "pages": [
     %{~ for index, tier in tf_unique_tiers ~}
@@ -31,7 +31,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM Metric, NrConsumption SELECT (max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}) + (max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd}) + (sum(GigabytesIngested) * ${tf_gb_ingest_usd}) AS 'Total Cost (USD)' SINCE this month FACET CASES(%{ for index_department, department in tf_showback_config ~}%{ if department.tier == tier ~}WHERE (department = '${department.department_name}' AND (tier = '${tier}')) OR consumingAccountName IN (%{ for index_accounts_in, account in department.accounts_in }%{ if index_accounts_in != 0 ~}, %{ endif }'${account}'%{ endfor ~})%{ for regex in department.accounts_regex } OR consumingAccountName RLIKE r'${regex}'%{ endfor } AS '${department.department_name}', %{ endif }%{ endfor ~}WHERE (department = 'Unassigned' AND (tier = '${tier}')) OR consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
+                "query": "FROM Metric SELECT (max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_committed_usd}) + (%{~ if tf_min_core_users == 0 ~}max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}%{~ else ~}if(max(`${tf_metric_name_prefix}.organization.coreuser.count`) > ${tf_min_core_users}, max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_additional_usd}, (${tf_min_core_users} * ${tf_core_user_committed_usd}) * (max(`${tf_metric_name_prefix}.department.coreuser.count`) / max(`${tf_metric_name_prefix}.organization.coreuser.count`)))%{~ endif ~}) AS 'User Cost (USD)' SINCE this month FACET department"
               }
             ],
             "platformOptions": {
@@ -58,7 +58,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM Metric, NrConsumption SELECT max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd} + max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd} + sum(GigabytesIngested) * ${tf_gb_ingest_usd} AS 'Total Cost (USD)', max(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count', max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd} as 'Full User Cost (USD)', max(`${tf_metric_name_prefix}.department.coreuser.count`) AS 'Core User Count', max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd} as 'Core User Cost (USD)', sum(GigabytesIngested) AS ingestGigabytes, sum(GigabytesIngested) * ${tf_gb_ingest_usd} AS 'Ingest Cost (USD)' SINCE this month FACET CASES(%{ for index_department, department in tf_showback_config ~}%{ if department.tier == tier ~}WHERE (department = '${department.department_name}' AND (tier = '${tier}')) OR consumingAccountName IN (%{ for index_accounts_in, account in department.accounts_in }%{ if index_accounts_in != 0 ~}, %{ endif }'${account}'%{ endfor ~})%{ for regex in department.accounts_regex } OR consumingAccountName RLIKE r'${regex}'%{ endfor } as '${department.department_name}', %{ endif }%{ endfor ~}WHERE (department = 'Unassigned' AND (tier = '${tier}')) OR consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
+                "query": "FROM Metric, NrConsumption SELECT %{~ if tf_min_core_users == 0 && tf_min_full_users == 0 && tf_min_gb_ingest == 0 ~}max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd} + max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd} + sum(GigabytesIngested) * ${tf_gb_ingest_usd}%{~ else ~}if(max(`${tf_metric_name_prefix}.department.coreuser.count`) > ${tf_min_core_users}, ${tf_min_core_users} * ${tf_core_user_committed_usd} + (max(`${tf_metric_name_prefix}.department.coreuser.count`) - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, ${tf_min_core_users} * ${tf_core_user_committed_usd}) + if(max(`${tf_metric_name_prefix}.department.fulluser.count`) > ${tf_min_full_users}, ${tf_min_full_users} * ${tf_full_user_committed_usd} + (max(`${tf_metric_name_prefix}.department.fulluser.count`) - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, ${tf_min_full_users} * ${tf_full_user_committed_usd}) + if(sum(GigabytesIngested) > ${tf_min_gb_ingest}, ${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + (sum(GigabytesIngested) - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, ${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd})%{~ endif ~} AS 'Total Cost (USD)', max(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count', %{~ if tf_min_full_users == 0 ~}max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd}%{~ else ~}if(max(`${tf_metric_name_prefix}.department.fulluser.count`) > ${tf_min_full_users}, ${tf_min_full_users} * ${tf_full_user_committed_usd} + (max(`${tf_metric_name_prefix}.department.fulluser.count`) - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, ${tf_min_full_users} * ${tf_full_user_committed_usd})%{~ endif ~} AS 'Full User Cost (USD)', max(`${tf_metric_name_prefix}.department.coreuser.count`) OR 0 AS 'Core User Count', %{~ if tf_min_core_users == 0 ~}max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}%{~ else ~}if(max(`${tf_metric_name_prefix}.department.coreuser.count`) > ${tf_min_core_users}, ${tf_min_core_users} * ${tf_core_user_committed_usd} + (max(`${tf_metric_name_prefix}.department.coreuser.count`) - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, ${tf_min_core_users} * ${tf_core_user_committed_usd})%{~ endif ~} AS 'Core User Cost (USD)', sum(GigabytesIngested) AS ingestGigabytes, %{~ if tf_min_gb_ingest == 0 ~}sum(GigabytesIngested) * ${tf_gb_ingest_usd}%{~ else ~}if(sum(GigabytesIngested) > ${tf_min_gb_ingest}, ${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + (sum(GigabytesIngested) - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, ${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd})%{~ endif ~} AS 'Ingest Cost (USD)' SINCE this month FACET CASES(%{ for index_department, department in tf_showback_config ~}%{ if department.tier == tier ~}WHERE (department = '${department.department_name}' AND (tier = '${tier}')) OR consumingAccountName IN (%{ for index_accounts_in, account in department.accounts_in }%{ if index_accounts_in != 0 ~}, %{ endif }'${account}'%{ endfor ~})%{ for regex in department.accounts_regex } OR consumingAccountName RLIKE r'${regex}'%{ endfor } AS '${department.department_name}', %{ endif }%{ endfor ~}WHERE (department = 'Unassigned' AND (tier = '${tier}')) OR consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
               }
             ],
             "platformOptions": {
@@ -117,7 +117,7 @@
             },
             "nrqlQueries": [
               {
-                "accountId": ${tf_account_id},
+                "accountId":  ${tf_account_id},
                 "query": "SELECT latest(`${tf_metric_name_prefix}.department.coreuser.count`) AS 'Core User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier = '${tier}' LIMIT MAX"
               }
             ],
@@ -127,20 +127,20 @@
           }
         },
         {
-          "title": "Basic Users",
+          "title": "Data Ingested GB",
           "layout": {
             "column": 7,
             "row": 5,
-            "width": 3,
+            "width": 6,
             "height": 3
           },
           "linkedEntityGuids": null,
           "visualization": {
-            "id": "viz.pie"
+            "id": "viz.area"
           },
           "rawConfiguration": {
             "facet": {
-              "showOtherSeries": true
+              "showOtherSeries": false
             },
             "legend": {
               "enabled": true
@@ -148,7 +148,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.basicuser.count`) AS 'Basic User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier = '${tier}' LIMIT MAX"
+                "query": "SELECT sum(GigabytesIngested) AS 'Ingested GB' FROM NrConsumption WHERE tier = '${tier}' SINCE 3 months ago facet monthOf(timestamp) LIMIT MAX"
               }
             ],
             "platformOptions": {
@@ -157,37 +157,7 @@
           }
         },
         {
-          "title": "Total Users",
-          "layout": {
-            "column": 10,
-            "row": 5,
-            "width": 3,
-            "height": 3
-          },
-          "linkedEntityGuids": null,
-          "visualization": {
-            "id": "viz.pie"
-          },
-          "rawConfiguration": {
-            "facet": {
-              "showOtherSeries": true
-            },
-            "legend": {
-              "enabled": true
-            },
-            "nrqlQueries": [
-              {
-                "accountId": ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.totaluser.count`) AS 'Total User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier = '${tier}' LIMIT MAX"
-              }
-            ],
-            "platformOptions": {
-              "ignoreTimeRange": false
-            }
-          }
-        },
-        {
-          "title": "Total Consumption by Month",
+          "title": "Cost this Year",
           "layout": {
             "column": 1,
             "row": 8,
@@ -196,17 +166,23 @@
           },
           "linkedEntityGuids": null,
           "visualization": {
-            "id": "viz.table"
+            "id": "viz.line"
           },
           "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "yAxisLeft": {
+              "max": null,
+              "min": null,
+              "zero": false
+            },
             "dataFormatters": [
               {
-                "name": "Ingest Cost",
-                "precision": 2,
-                "type": "decimal"
-              },
-              {
-                "name": "Total Cost",
+                "name": "Total Cost (USD)",
                 "precision": 2,
                 "type": "decimal"
               }
@@ -217,7 +193,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM NrMTDConsumption\nSELECT\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} + filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') * ${tf_core_user_usd} + filter(latest(GigabytesIngestedBillable) * ${tf_gb_ingest_usd}, WHERE productLine = 'DataPlatform') AS 'Total Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') AS 'FSO User Count',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} as 'FSO User Cost (USD)',\n  filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') AS 'Core User Count',\n  filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') * ${tf_core_user_usd} AS 'Core User Cost (USD)',\n filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') AS 'Ingested GB',\n  filter(latest(GigabytesIngestedBillable) * ${tf_gb_ingest_usd}, WHERE productLine = 'DataPlatform') AS 'Ingest Cost (USD)'\nSINCE 12 months ago facet monthOf(timestamp) order by timestamp"
+                "query": "FROM NrMTDConsumption\nSELECT\n  %{~ if tf_min_core_users == 0 && tf_min_full_users == 0 && tf_min_gb_ingest == 0 ~}filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} + filter(latest(billableConsumption), WHERE metric = 'CoreUsers') * ${tf_core_user_usd} + filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') * ${tf_gb_ingest_usd}%{~ else ~}(${tf_min_full_users} * ${tf_full_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') > ${tf_min_full_users}, (filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, 0)) + (${tf_min_core_users} * ${tf_core_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'CoreUsers') > ${tf_min_core_users}, (filter(latest(billableConsumption), WHERE metric = 'CoreUsers') - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0)) + (${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + if(filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') > ${tf_min_gb_ingest}, (filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, 0))%{~ endif ~} AS 'Total Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') AS 'FSO User Count',\n  %{~ if tf_min_full_users == 0 ~}filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd}%{~ else ~}${tf_min_full_users} * ${tf_full_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') > ${tf_min_full_users}, (filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, 0)%{~ endif ~} AS 'FSO User Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'CoreUsers') OR 0 AS 'Core User Count',\n  %{~ if tf_min_core_users == 0 ~}filter(latest(billableConsumption), WHERE metric = 'CoreUsers') * ${tf_core_user_usd}%{~ else ~}${tf_min_core_users} * ${tf_core_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'CoreUsers') > ${tf_min_core_users}, (filter(latest(billableConsumption), WHERE metric = 'CoreUsers') - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0)%{~ endif ~} AS 'Core User Cost (USD)',\n filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') AS 'Ingested GB',\n  %{~ if tf_min_gb_ingest == 0 ~}filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') * ${tf_gb_ingest_usd}%{~ else ~}${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + if(filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') > ${tf_min_gb_ingest}, (filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, 0)%{~ endif ~} AS 'Ingest Cost (USD)'\nSINCE 12 months ago facet monthOf(timestamp) order by timestamp"
               }
             ],
             "platformOptions": {
@@ -255,7 +231,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM Metric, NrConsumption SELECT (max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}) + (max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd}) + (sum(GigabytesIngested) * ${tf_gb_ingest_usd}) AS 'Total Cost (USD)' SINCE this month FACET CASES(%{ for index_department, department in tf_showback_config ~}WHERE (department = '${department.department_name}' AND (tier IS NULL)) OR consumingAccountName IN (%{ for index_accounts_in, account in department.accounts_in }%{ if index_accounts_in != 0 ~}, %{ endif }'${account}'%{ endfor ~})%{ for regex in department.accounts_regex } OR consumingAccountName RLIKE r'${regex}'%{ endfor } AS '${department.department_name}', %{ endfor ~}WHERE (department = 'Unassigned' AND (tier IS NULL)) OR consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
+                "query": "FROM Metric SELECT (%{~ if tf_min_core_users == 0 && tf_min_full_users == 0 && tf_min_gb_ingest == 0 ~}(max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}) + (max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd})%{~ else ~}(if(max(`${tf_metric_name_prefix}.organization.coreuser.count`) > ${tf_min_core_users}, max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_additional_usd}, (${tf_min_core_users} * ${tf_core_user_committed_usd}) * (max(`${tf_metric_name_prefix}.department.coreuser.count`) / max(`${tf_metric_name_prefix}.organization.coreuser.count`)))) + (if(max(`${tf_metric_name_prefix}.organization.fulluser.count`) > ${tf_min_full_users}, max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_additional_usd}, (${tf_min_full_users} * ${tf_full_user_committed_usd}) * (max(`${tf_metric_name_prefix}.department.fulluser.count`) / max(`${tf_metric_name_prefix}.organization.fulluser.count`))))%{~ endif ~}) OR 0 AS 'User Cost (USD)' SINCE this month FACET department"
               }
             ],
             "platformOptions": {
@@ -282,7 +258,11 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM Metric, NrConsumption SELECT max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd} + max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd} + sum(GigabytesIngested) * ${tf_gb_ingest_usd} AS 'Total Cost (USD)', max(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count', max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_usd} as 'Full User Cost (USD)', max(`${tf_metric_name_prefix}.department.coreuser.count`) AS 'Core User Count', max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd} as 'Core User Cost (USD)', sum(GigabytesIngested) AS ingestGigabytes, sum(GigabytesIngested) * ${tf_gb_ingest_usd} AS 'Ingest Cost (USD)' SINCE this month FACET CASES(%{ for index_department, department in tf_showback_config ~}WHERE (department = '${department.department_name}' AND (tier IS NULL)) OR consumingAccountName IN (%{ for index_accounts_in, account in department.accounts_in }%{ if index_accounts_in != 0 ~}, %{ endif }'${account}'%{ endfor ~})%{ for regex in department.accounts_regex } OR consumingAccountName RLIKE r'${regex}'%{ endfor } as '${department.department_name}', %{ endfor ~}WHERE (department = 'Unassigned' AND (tier IS NULL)) OR consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
+                "query": "FROM Metric SELECT max(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count', (max(`${tf_metric_name_prefix}.department.fulluser.count`) * ${tf_full_user_committed_usd}) OR 0 AS 'Full User Cost (USD)', max(`${tf_metric_name_prefix}.department.coreuser.count`) OR 0 AS 'Core User Count', (%{~ if tf_min_core_users == 0 ~}max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_usd}%{~ else ~}if(max(`${tf_metric_name_prefix}.organization.coreuser.count`) > ${tf_min_core_users}, max(`${tf_metric_name_prefix}.department.coreuser.count`) * ${tf_core_user_additional_usd}, (${tf_min_core_users} * ${tf_core_user_committed_usd}) * (max(`${tf_metric_name_prefix}.department.coreuser.count`) / max(`${tf_metric_name_prefix}.organization.coreuser.count`)))%{~ endif ~}) OR 0 AS 'Core User Cost (USD)' SINCE this month FACET department"
+              },
+              {
+                "accountId": ${tf_account_id},
+                "query": "FROM NrConsumption SELECT sum(GigabytesIngested) AS 'ingestGigabytes', (%{~ if tf_min_gb_ingest == 0 ~}sum(GigabytesIngested) * ${tf_gb_ingest_usd}%{~ else ~}sum(GigabytesIngested) * ${tf_gb_ingest_additional_usd}%{~ endif ~}) AS 'Ingest Cost (USD)' SINCE this month FACET CASES(%{~ for index_department, department in tf_showback_config ~}WHERE consumingAccountName IN (%{~ for index_accounts_in, account in department.accounts_in ~}%{~ if index_accounts_in != 0 ~}, %{~ endif ~}'${account}'%{~ endfor ~})%{~ for regex in department.accounts_regex ~} OR consumingAccountName RLIKE r'${regex}'%{~ endfor ~} AS '${department.department_name}', %{~ endfor ~}WHERE consumingAccountName IS NOT NULL AS 'Unassigned') AS 'department'"
               }
             ],
             "platformOptions": {
@@ -312,7 +292,7 @@
             "nrqlQueries": [
               {
                 "accountId":  ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier IS NULL LIMIT MAX"
+                "query": "SELECT latest(`${tf_metric_name_prefix}.department.fulluser.count`) AS 'Full User Count' FROM Metric SINCE this month facet department LIMIT MAX"
               }
             ],
             "platformOptions": {
@@ -342,7 +322,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.coreuser.count`) AS 'Core User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier IS NULL LIMIT MAX"
+                "query": "SELECT latest(`${tf_metric_name_prefix}.department.coreuser.count`) AS 'Core User Count' FROM Metric SINCE this month facet department LIMIT MAX"
               }
             ],
             "platformOptions": {
@@ -372,7 +352,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.basicuser.count`) AS 'Basic User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier IS NULL LIMIT MAX"
+                "query": "SELECT latest(`${tf_metric_name_prefix}.department.basicuser.count`) AS 'Basic User Count' FROM Metric SINCE this month facet department LIMIT MAX"
               }
             ],
             "platformOptions": {
@@ -402,7 +382,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "SELECT latest(`${tf_metric_name_prefix}.department.totaluser.count`) AS 'Total User Count' FROM Metric SINCE 1 DAY AGO facet department WHERE tier IS NULL LIMIT MAX"
+                "query": "SELECT latest(`${tf_metric_name_prefix}.department.totaluser.count`) AS 'Total User Count' FROM Metric SINCE this month facet department LIMIT MAX"
               }
             ],
             "platformOptions": {
@@ -441,7 +421,7 @@
             "nrqlQueries": [
               {
                 "accountId": ${tf_account_id},
-                "query": "FROM NrMTDConsumption\nSELECT\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} + filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') * ${tf_core_user_usd} + filter(latest(GigabytesIngestedBillable) * ${tf_gb_ingest_usd}, WHERE productLine = 'DataPlatform') AS 'Total Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') AS 'FSO User Count',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} as 'FSO User Cost (USD)',\n  filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') AS 'Core User Count',\n  filter(latest(billableConsumption) OR 0, WHERE metric = 'CoreUsers') * ${tf_core_user_usd} AS 'Core User Cost (USD)',\n filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') AS 'Ingested GB',\n  filter(latest(GigabytesIngestedBillable) * ${tf_gb_ingest_usd}, WHERE productLine = 'DataPlatform') AS 'Ingest Cost (USD)'\nSINCE 12 months ago facet monthOf(timestamp) order by timestamp"
+                "query": "FROM NrMTDConsumption\nSELECT\n  %{~ if tf_min_core_users == 0 && tf_min_full_users == 0 && tf_min_gb_ingest == 0 ~}filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd} + filter(latest(billableConsumption), WHERE metric = 'CoreUsers') * ${tf_core_user_usd} + filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') * ${tf_gb_ingest_usd}%{~ else ~}(${tf_min_full_users} * ${tf_full_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') > ${tf_min_full_users}, (filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, 0)) + (${tf_min_core_users} * ${tf_core_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'CoreUsers') > ${tf_min_core_users}, (filter(latest(billableConsumption), WHERE metric = 'CoreUsers') - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0)) + (${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + if(filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') > ${tf_min_gb_ingest}, (filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, 0))%{~ endif ~} AS 'Total Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') AS 'FSO User Count',\n  %{~ if tf_min_full_users == 0 ~}filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') * ${tf_full_user_usd}%{~ else ~}${tf_min_full_users} * ${tf_full_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') > ${tf_min_full_users}, (filter(latest(billableConsumption), WHERE metric = 'FullUsers' OR metric = 'FullPlatformUsers') - ${tf_min_full_users}) * ${tf_full_user_additional_usd}, 0)%{~ endif ~} AS 'FSO User Cost (USD)',\n  filter(latest(billableConsumption), WHERE metric = 'CoreUsers') OR 0 AS 'Core User Count',\n  %{~ if tf_min_core_users == 0 ~}filter(latest(billableConsumption), WHERE metric = 'CoreUsers') * ${tf_core_user_usd}%{~ else ~}${tf_min_core_users} * ${tf_core_user_committed_usd} + if(filter(latest(billableConsumption), WHERE metric = 'CoreUsers') > ${tf_min_core_users}, (filter(latest(billableConsumption), WHERE metric = 'CoreUsers') - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0)%{~ endif ~} AS 'Core User Cost (USD)',\n filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') AS 'Ingested GB',\n  %{~ if tf_min_gb_ingest == 0 ~}filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') * ${tf_gb_ingest_usd}%{~ else ~}${tf_min_gb_ingest} * ${tf_gb_ingest_committed_usd} + if(filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') > ${tf_min_gb_ingest}, (filter(latest(GigabytesIngestedBillable), WHERE productLine = 'DataPlatform') - ${tf_min_gb_ingest}) * ${tf_gb_ingest_additional_usd}, 0)%{~ endif ~} AS 'Ingest Cost (USD)'\nSINCE 12 months ago facet monthOf(timestamp) order by timestamp"
               }
             ],
             "platformOptions": {
@@ -678,6 +658,5 @@
         }
       ]
     }
-  ],
-  "variables": []
+  ]
 }
