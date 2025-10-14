@@ -1,19 +1,19 @@
 locals {
   dept_to_tier_map = jsonencode([
-    for department in var.showback_config : [ department.department_name, department.tier ]
+    for department in var.showback_config : [department.department_name, department.tier]
   ])
 
   templatefile_render = templatefile(
-   "${path.module}/showback_script.tftpl",
+    "${path.module}/showback_script.tftpl",
     {
-      tf_new_relic_region = var.new_relic_region
-      tf_showback_insert_account_id = var.showback_insert_account_id
-      tf_showback_ignore_groups = var.showback_ignore.groups
+      tf_new_relic_region               = var.new_relic_region
+      tf_showback_insert_account_id     = var.showback_insert_account_id
+      tf_showback_ignore_groups         = var.showback_ignore.groups
       tf_showback_ignore_newrelic_users = var.showback_ignore.newrelic_users
-      tf_showback_config = var.showback_config
-      tf_dept_to_tier_map = local.dept_to_tier_map
-      tf_event_name_prefix = var.event_name_prefix
-      tf_metric_name_prefix = var.metric_name_prefix
+      tf_showback_config                = var.showback_config
+      tf_dept_to_tier_map               = local.dept_to_tier_map
+      tf_event_name_prefix              = var.event_name_prefix
+      tf_metric_name_prefix             = var.metric_name_prefix
     }
   )
 }
@@ -29,20 +29,20 @@ resource "newrelic_synthetics_script_monitor" "showback_monitor" {
   runtime_type         = "NODE_API"
   runtime_type_version = "16.10"
   tag {
-    key = "terraform"
+    key    = "terraform"
     values = [true]
   }
 }
 
 resource "newrelic_synthetics_secure_credential" "showback_insert_license_api_key" {
-  key = "SHOWBACK_INSERT_LICENSE_API_KEY"
-  value = var.showback_insert_license_api_key
+  key         = "SHOWBACK_INSERT_LICENSE_API_KEY"
+  value       = var.showback_insert_license_api_key
   description = "NR Showback reporting insert license key for account: ${var.showback_insert_account_id}"
 }
 
 resource "newrelic_synthetics_secure_credential" "showback_query_user_api_key" {
-  key = "SHOWBACK_QUERY_USER_API_KEY"
-  value = var.showback_query_user_api_key
+  key         = "SHOWBACK_QUERY_USER_API_KEY"
+  value       = var.showback_query_user_api_key
   description = "NR Showback reporting query user api key"
 }
 

@@ -1,15 +1,8 @@
-[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)lic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](http#### **How Minimum Commitment Pricing Works**
-- **Committed Cost**: `minimum_amount × committed_rate`
-- **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
-- **Total Cost**: `committed_cost + additional_cost`
+[![New Relic Experimental header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Experimental.png)](https://opensource.newrelic.com/oss-category/#new-relic-experimental)
 
-**Example**: With 12 core users (10 minimum at $45, 2 additional at $49):
-- Committed: 10 × $45 = $450
-- Additional: 2 × $49 = $98  
-- Total: $548ource.newrelic.com/oss-category/#new-relic-experimental)
 # nr-showback
 
-This repository provides an automated way to report New Relic ingest consumption and user costs, by business department, using aggregated account-based cost allocation. **Now with support for minimum commitment pricing** for enterprise contract billing models.
+This repository provides an automated way to report New Relic ingest consumption and user costs, by business department, using aggregated account-based cost allocation. **Now with advanced proportional cost allocation and synthetics billing** for enterprise contract models.
 
 ![Data flow diagram](screenshots/nr-showback-data-flow-diagram.png)
 
@@ -17,13 +10,41 @@ A single [terraform.tfvars](terraform.tfvars) file contains the definition of de
 
 ![Example dashboard](screenshots/nr-showback-dashboard.png)
 
-## ✨ New: Minimum Commitment Pricing
+## ✨ New: Advanced Cost Allocation Features
 
-This solution now supports **minimum commitment pricing models** commonly used in enterprise New Relic contracts:
+This solution now supports **sophisticated cost allocation models** for enterprise New Relic contracts:
+
+### 🔄 **Proportional Cost Allocation** 
+Departments pay **fair shares** of organizational costs based on their actual usage:
+- **Ingest Costs**: When your organization doesn't meet the minimum commitment (e.g., 2,500GB), each department pays their proportional share of the minimum cost
+- **Synthetics Costs**: After the included checks (typically 1,000,000), excess costs are allocated proportionally by department usage
+- **Real-time Calculations**: Uses live consumption data for accurate, up-to-date cost allocation
+
+**Example Proportional Ingest Allocation:**
+- Organization total: 1,800GB (under 2,500GB minimum)
+- Organization cost: 2,500GB × $0.30 = $750 (minimum commitment)
+- Department A usage: 600GB = 33.3% of total
+- Department A cost: $750 × 33.3% = $250
+
+### 💰 **Synthetics Cost Management**
+- **Included Checks**: First 1,000,000 synthetic checks per month are included (configurable based on your contract)
+- **Proportional Billing**: Excess checks beyond included amount are charged at $0.005/check (configurable)
+- **Department Allocation**: Each department pays their proportional share of total excess costs
+
+**Example Synthetics Allocation:**
+- Organization total: 1,500,000 checks
+- Included checks: 1,000,000 (per contract)
+- Billable checks: 500,000 (above included amount)
+- Total cost: 500,000 × $0.005 = $2,500
+- Department usage allocation applied proportionally
+
+### 📊 **Minimum Commitment Pricing** 
+Different pricing tiers for committed minimums vs. additional usage:
 
 - **Committed Rates**: Different pricing for committed minimums vs. additional usage
 - **Flexible Minimums**: Set minimum committed users and data ingest amounts
 - **Automatic Calculations**: Dashboard automatically calculates committed costs + additional costs
+- **Proportional Minimums**: When organizations are under minimums, costs are allocated proportionally
 - **Backward Compatible**: Existing configurations continue to work unchanged
 
 ### Quick Example
@@ -37,16 +58,23 @@ showback_price = {
   # Committed rates (lower cost for minimums)
   core_user_committed_usd = 49
   full_user_committed_usd = 315
-  gb_ingest_committed_usd = 0.35
+  gb_ingest_committed_usd = 0.30    # $0.30/GB for committed ingest
   
   # Additional rates (standard cost for additional usage)
   core_user_additional_usd = 49
   full_user_additional_usd = 310
-  gb_ingest_additional_usd = 0.35
+  gb_ingest_additional_usd = 0.35   # $0.35/GB for additional ingest
+  
+  # Synthetics pricing (new)
+  synthetics_checks_included = 1000000    # 1M included checks per month
+  synthetics_additional_check_usd = 0.005 # $0.005 per additional check
 }
 ```
 
-**Result**: Pay committed rates for minimums, then standard rates for any usage above minimums.
+**Result**: 
+- Pay committed rates for minimums, standard rates for overages
+- **Proportional allocation** when organization is under minimums
+- **Synthetics charges** apply only to usage above 1M checks
 
 ## Will it work for *us*?
 ### Good fit
@@ -92,13 +120,38 @@ Note: You may want to update the version numbers in [provider.tf](provider.tf) a
 The showback configuration is entirely within the terraform.tfvars file. Copy [terraform.tfvars.sample](terraform.tfvars.sample), which is populated with an example config to a file named `terraform.tfvars`. Modify the configuration for your account. The configuration contains:
 - `showback_price`: the costs for:
   - full users (`full_user_usd`)
-  - core users (`core_user_usd`)
+  - core users (`core_user_usd`) 
   - billable ingest per GB (`gb_ingest_usd`)
+  - **New**: Minimum commitments and committed/additional rates
+  - **New**: Synthetics pricing (`synthetics_checks_included`, `synthetics_additional_check_usd`)
 - `showback_ignore.groups`: whether specific user group membership should be ignored. Some customers grant read-only access to all accounts, which breaks the script’s showback user apportioning
 - `showback_ignore.newrelic`: whether New Relic employees should be ignored in the showback charge, set to `true`, but can be changed
 - `showback_config`: for each department, the `department_name`, an optional `tier` value (for grouping departments into higher level reporting units), and accounts either as a list (`accounts_in`) or as a list of one or more regular expressions (`accounts_regex`)
 
 The expectation with the tier value is that all accounts are separately mapped to one or more reporting units. Any additional tiers will be displayed on a separate page on the dashboard with the page title set to the tier name, e.g. 'Reporting Unit'.
+
+## 📊 Data Sources & Proportional Allocation
+
+### **Real-time vs. Historical Data**
+The dashboard uses different data sources for different purposes:
+
+**Department Cost Allocation** (Real-time):
+- **Data Source**: `NrConsumption` (current month, real-time)
+- **Metrics**: `GigabytesIngested` (total usage including free 100GB), `SyntheticChecks`
+- **Purpose**: Fair proportional allocation based on actual consumption
+- **Why**: Departments should pay based on their share of total usage, not just billable amounts
+
+**Organization Reporting** (Historical):
+- **Data Source**: `NrMTDConsumption` (processed monthly data)  
+- **Metrics**: `GigabytesIngestedBillable` (billable usage only), `SyntheticChecksBillable`
+- **Purpose**: Accurate billing trends and organizational cost tracking
+- **Why**: Shows actual costs without included allowance distortion
+
+### **Key Insight: Proportional Fairness**
+When your organization uses 1,800GB but has a 2,500GB minimum commitment:
+- **Organization pays**: $750 (minimum commitment cost)
+- **Department allocation**: Based on each dept's % of the 1,800GB actual usage
+- **Result**: Heavy users pay more, light users pay less, but total equals org minimum
 
 ## 💰 Pricing Models
 
@@ -112,52 +165,58 @@ showback_price = {
 }
 ```
 
-### 2. **Minimum Commitment Pricing** (New)
-Enterprise contract pricing with committed minimums and additional rates:
-#### 2. **Minimum Commitment Pricing** (New)
-Enterprise contract pricing with committed minimums and additional rates:
+### 2. **Proportional Minimum Commitment Pricing** (Enhanced)
+Enterprise contract pricing with committed minimums, additional rates, and proportional allocation:
 ```hcl
 showback_price = {
-  # Legacy rates (used as fallback)
+  # Standard rates (used as fallback)
   core_user_usd = 49
   full_user_usd = 99  
   gb_ingest_usd = 0.30
   
-  # Minimum commitments
+  # Minimum commitments (with proportional allocation)
   min_core_users = 10       # Minimum 10 core users
   min_full_users = 5        # Minimum 5 full users
-  min_gb_ingest = 1000      # Minimum 1000GB ingest
+  min_gb_ingest = 2500      # Minimum 2500GB ingest
   
   # Committed rates (discounted pricing for minimums)
   core_user_committed_usd = 45
   full_user_committed_usd = 90
-  gb_ingest_committed_usd = 0.25
+  gb_ingest_committed_usd = 0.30
   
-  # Additional rates (standard pricing for additional usage)
+  # Additional rates (pricing for additional usage)
   core_user_additional_usd = 49
   full_user_additional_usd = 99
-  gb_ingest_additional_usd = 0.30
+  gb_ingest_additional_usd = 0.35
   
-  # Optional: prorate minimums for partial months
-  prorate_minimums = false
+  # Synthetics pricing (new)
+  synthetics_checks_included = 1000000    # 1M free checks
+  synthetics_additional_check_usd = 0.005 # $0.005/additional check
 }
 ```
 
-### **How Minimum Commitment Pricing Works**
-- **Committed Cost**: `minimum_amount × committed_rate`
-- **Additional Cost**: `MAX(0, actual_usage - minimum_amount) × additional_rate`  
-- **Total Cost**: `committed_cost + additional_cost`
+### **How Proportional Allocation Works**
+When your organization doesn't meet minimum commitments, costs are allocated fairly:
 
-**Example**: With 12 core users (10 minimum at $45, 2 additional at $49):
-- Committed: 10 × $45 = $450
-- Additional: 2 × $49 = $98  
-- Total: $548
+**Ingest Example** (Organization uses 1,800GB, minimum is 2,500GB):
+- **Total org cost**: 2,500GB × $0.30 = $750 (paying minimum)
+- **Department A**: 600GB usage = 600/1,800 = 33.3% of total usage
+- **Department A cost**: $750 × 33.3% = $250 (proportional share)
 
+**Synthetics Example** (Organization uses 1,500,000 checks):
+- **Included checks**: 1,000,000 checks (no cost)
+- **Billable checks**: 500,000 excess checks
+- **Total org cost**: 500,000 × $0.005 = $2,500
+- **Department allocation**: Based on each department's % of total checks
 ### **Key Features**
+- ✅ **Proportional Cost Allocation**: Fair distribution when under minimum commitments
+- ✅ **Synthetics Cost Management**: 1M free checks, then proportional billing  
+- ✅ **Real-time Calculations**: Uses live `NrConsumption` data for accurate allocation
 - ✅ **Backward Compatible**: Existing configurations continue to work unchanged
 - ✅ **Flexible Pricing**: Different rates for committed vs. additional usage
 - ✅ **Enterprise Ready**: Supports complex contract pricing models
-- ✅ **Automatic Calculations**: Dashboard handles all commitment logic
+- ✅ **Automatic Calculations**: Dashboard handles all commitment and proportional logic
+- ✅ **Data Source Transparency**: Clear distinction between total usage and billable usage
 - ✅ **Validation**: Terraform ensures configuration correctness
 
 See [terraform.tfvars.minimum-commit-example](terraform.tfvars.minimum-commit-example) for a complete working example.
@@ -186,58 +245,94 @@ The synthetics script, default name NR Showback reporting script, posts four typ
 4. `Showback_AccountUsers` custom events, containing an event per user, per role, per account.
 
 ## Dashboard reporting
-The dashboard, default name `NR Showback reporting`, contains three pages with **enhanced cost calculations** that automatically support both simple and minimum commitment pricing:
+The dashboard, default name `NR Showback reporting`, contains three pages with **enhanced proportional cost calculations** that automatically support simple pricing, minimum commitments, and fair cost allocation:
 
-1. `Department Showback` (shown above)
-- **Cost breakdown** by department with automatic commitment/additional calculations
-- **Pie charts** showing cost distribution across departments
-- **Detailed table** with individual cost components (Core, Full, Ingest costs)
-- **User distribution** widgets showing breakdown by type per department  
+1. **`Department Showback`** (Main cost allocation page)
+- **Proportional cost breakdown** by department with automatic commitment/additional calculations
+- **Real-time allocation**: Uses live consumption data for accurate department cost shares
+- **Pie charts** showing cost distribution across departments  
+- **Detailed table** with individual cost components:
+  - Core/Full user costs (direct allocation)
+  - **Ingest costs** (proportional allocation of org minimum or actual costs)
+  - **Synthetics costs** (proportional allocation of excess above 1M free checks)
+- **User distribution** widgets showing breakdown by type per department
 - **Monthly trending** table showing historical consumption with commitment-based billing
-2. `Account Users (Summary)`
+
+2. **`Account Users (Summary)`**
 - **Tabular breakdown** of users per account with cost implications
 - **User type distribution** charts showing % breakdown and trends over time
 - **Unique users table** listing each user by email address with department allocations
-3. `Account Users (All Accounts)`  
+
+3. **`Account Users (All Accounts)`**  
 - **Account overview** with user count summaries
 - **Comprehensive user list** showing every user, role, and account access
 
-### **Enhanced Cost Features**
-All cost calculations automatically adapt based on your pricing configuration:
+### **Enhanced Proportional Cost Features**
+All cost calculations automatically adapt based on your pricing configuration and usage patterns:
+
+**Proportional Allocation Logic**:
+- **When under minimums**: Departments pay proportional shares of minimum commitment costs
+- **When over minimums**: Departments pay proportional shares of (minimums + excess costs)
+- **Synthetics fairness**: Only excess above 1M checks is allocated proportionally
+- **Real-time accuracy**: Uses current month consumption data for up-to-date allocation
+
+**Cost Calculation Examples**:
 - **Simple pricing**: Direct multiplication of usage × rates
-- **Commitment pricing**: Committed minimums + additional calculations
+- **Commitment pricing**: Committed minimums + additional calculations with proportional allocation
 - **Mixed scenarios**: Handles partial commitments (e.g., only Core user minimums)
-- **Real-time updates**: Dashboard reflects current pricing model without modification
+- **Real-time updates**: Dashboard reflects current pricing model and consumption without modification
 
 ## 🔧 Technical Implementation
 
-### **Files Modified for Minimum Commitment Support**
-1. **`variables.tf`** - Enhanced pricing variable definitions with validation
-2. **`terraform.tfvars.sample`** - Updated sample configuration with examples
-3. **`dashboard.tf`** - Extended template variable passing for new pricing parameters
-4. **`dashboards/dashboard.json.tftpl`** - Advanced NRQL cost calculations with conditional logic
-5. **`terraform.tfvars.minimum-commit-example`** - Complete working example (new)
+### **Files Modified for Enhanced Cost Allocation**
+1. **`variables.tf`** - Enhanced pricing variable definitions with synthetics and validation
+2. **`terraform.tfvars.sample`** - Updated sample configuration with proportional pricing examples
+3. **`dashboard.tf`** - Extended template variable passing for new pricing and synthetics parameters
+4. **`dashboards/dashboard.json.tftpl`** - Advanced NRQL cost calculations with proportional allocation logic
+5. **`terraform.tfvars.minimum-commit-example`** - Complete working example with proportional features
 
-### **NRQL Implementation Details**
-The dashboard uses sophisticated NRQL queries with conditional logic:
+### **Advanced NRQL Implementation**
+The dashboard uses sophisticated NRQL queries with proportional allocation logic:
+
+**Proportional Ingest Cost Calculation**:
 ```sql
--- Example: Core user cost calculation
-(${tf_min_core_users} * ${tf_core_user_committed_usd} + 
- if(max(core_user_count) > ${tf_min_core_users}, 
-    (max(core_user_count) - ${tf_min_core_users}) * ${tf_core_user_additional_usd}, 0))
+-- Department pays proportional share of organizational minimum commitment
+(sum(GigabytesIngested) / 
+  (SELECT sum(GigabytesIngested) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) * 
+  if((SELECT sum(GigabytesIngested) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) > 2500, 
+    2500 * 0.30 + ((SELECT sum(GigabytesIngested) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) - 2500) * 0.35, 
+    2500 * 0.30))
 ```
 
-This automatically:
-- ✅ Calculates committed cost for minimums
-- ✅ Adds additional cost for usage above minimums  
-- ✅ Handles edge cases (usage below minimums)
-- ✅ Maintains backward compatibility with simple pricing
+**Proportional Synthetics Cost Calculation**:
+```sql
+-- Department pays proportional share of excess synthetics costs above 1M free
+(sum(SyntheticChecks) / 
+  (SELECT sum(SyntheticChecks) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) * 
+  if((SELECT sum(SyntheticChecks) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) > 1000000, 
+    ((SELECT sum(SyntheticChecks) FROM NrConsumption WHERE consumingAccountName IS NOT NULL SINCE this month) - 1000000) * 0.005, 
+    0))
+```
+
+**Key Technical Features**:
+- ✅ **Subquery isolation**: `WHERE consumingAccountName IS NOT NULL` ensures org totals aren't affected by FACET filtering
+- ✅ **Real-time data**: Uses `NrConsumption` for current month live consumption data
+- ✅ **Proportional fairness**: `dept_usage / org_total × org_cost` formula ensures fair allocation
+- ✅ **Waterfall charging**: Handles minimum commitments + excess costs seamlessly
+- ✅ **Error handling**: Prevents negative costs and division by zero scenarios
+
+### **Data Source Strategy**
+- **Department allocation**: `GigabytesIngested` (includes free 100GB) for fair proportional sharing
+- **Organization reporting**: `GigabytesIngestedBillable` (billable only) for accurate cost tracking
+- **Synthetics allocation**: `SyntheticChecks` total usage for proportional excess cost sharing
+- **Real-time accuracy**: Live consumption data ensures up-to-date cost allocation
 
 ### **Validation & Safety**
-- **Terraform validation** ensures minimum commitments are non-negative
+- **Terraform validation** ensures minimum commitments and synthetics pricing are non-negative
 - **Configuration validation** requires both committed and additional rates when minimums are set
-- **NRQL error handling** prevents negative additional costs and division by zero
-- **Backward compatibility** preserved for existing configurations
+- **NRQL error handling** prevents negative additional costs and ensures accurate proportional calculations
+- **Backward compatibility** preserved for existing simple pricing configurations
+- **Subquery protection** prevents FACET filtering from corrupting organizational total calculations
 
 # Support
 

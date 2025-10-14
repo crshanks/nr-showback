@@ -22,6 +22,11 @@ showback_price = {  # Standard plan, Oct 2025
   min_full_users = 0,                # Minimum committed full users per month
   min_gb_ingest = 0                  # Minimum committed GB ingest per month
   
+  # Optional: Synthetics pricing
+  # Uncomment and set these when you have synthetics pricing in your contract
+  # synthetics_checks_included = 1000000,  # Number of synthetics checks included per month
+  # synthetics_additional_check_usd = 0.005,  # Price per additional synthetics check
+  
   # Optional: Partial month commitment handling (defaults to false)
   # prorate_minimums = false,          # true = prorate minimums for partial months, false = full commitment regardless
 }
