@@ -20,11 +20,19 @@ Departments pay **fair shares** of organizational costs based on their actual us
 - **Synthetics Costs**: After the included checks (typically 1,000,000), excess costs are allocated proportionally by department usage
 - **Real-time Calculations**: Uses live consumption data for accurate, up-to-date cost allocation
 
+- Organization total: 1,800GB (under 2,500GB minimum)
+- Organization cost: 2,500GB × $0.40 = $1,000 (minimum commitment)
+- Department A usage: 600GB = 33.3% of total
+- Department A cost: $1,000 × 33.3% = $333.33
 **Example Proportional Ingest Allocation:**
 - Organization total: 1,800GB (under 2,500GB minimum)
-- Organization cost: 2,500GB × $0.30 = $750 (minimum commitment)
+- Organization cost: 2,500GB × $0.40 = $1,000 (minimum commitment)
 - Department A usage: 600GB = 33.3% of total
-- Department A cost: $750 × 33.3% = $250
+- Department A cost: $1,000 × 600/1,800 = $333.33
+- Organization total: 1,800GB (under 2,500GB minimum)
+- Organization cost: 2,500GB × $0.40 = $1,000 (minimum commitment)
+- Department A usage: 600GB = 33.3% of total
+- Department A cost: $1,000 × 33.3% = $333.33
 
 ### 💰 **Synthetics Cost Management**
 - **Included Checks**: First 1,000,000 synthetic checks per month are included (configurable based on your contract)
@@ -50,21 +58,26 @@ Different pricing tiers for committed minimums vs. additional usage:
 ### Quick Example
 ```hcl
 showback_price = {
-  # Minimum commitments
-  min_core_users = 4      # 4 core users minimum
-  min_full_users = 9      # 9 full users minimum  
-  min_gb_ingest = 2500    # 2500GB ingest minimum
-  
-  # Committed rates (lower cost for minimums)
+  # Standard rates (used as fallback)
+  core_user_usd = 49        # $49 per core user
+  full_user_usd = 99        # $99 per full user
+  gb_ingest_usd = 0.40      # $0.40 per GB ingest
+
+  # Minimum commitments (with proportional allocation)
+  min_core_users = 10       # Minimum 10 core users
+  min_full_users = 5        # Minimum 5 full users
+  min_gb_ingest = 2500      # Minimum 2500GB ingest
+
+  # Committed rates (for minimums)
   core_user_committed_usd = 49
-  full_user_committed_usd = 315
-  gb_ingest_committed_usd = 0.30    # $0.30/GB for committed ingest
-  
-  # Additional rates (standard cost for additional usage)
+  full_user_committed_usd = 99
+  gb_ingest_committed_usd = 0.40
+
+  # Additional rates (pricing for additional usage)
   core_user_additional_usd = 49
-  full_user_additional_usd = 310
-  gb_ingest_additional_usd = 0.35   # $0.35/GB for additional ingest
-  
+  full_user_additional_usd = 99
+  gb_ingest_additional_usd = 0.40
+
   # Synthetics pricing (new)
   synthetics_checks_included = 1000000    # 1M included checks per month
   synthetics_additional_check_usd = 0.005 # $0.005 per additional check
@@ -179,7 +192,7 @@ showback_price = {
   min_full_users = 5        # Minimum 5 full users
   min_gb_ingest = 2500      # Minimum 2500GB ingest
   
-  # Committed rates (discounted pricing for minimums)
+  # Committed rates (for minimums)
   core_user_committed_usd = 45
   full_user_committed_usd = 90
   gb_ingest_committed_usd = 0.30
