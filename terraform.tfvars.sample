@@ -2,31 +2,31 @@
 
 showback_price = {  # Standard plan, Oct 2025
   # Non-commitment pricing (maintained for backward compatibility)
-  core_user_usd = 49,  # Standard plan $49 / month 
+  core_user_usd = 49,  # Standard plan $49 / month
   full_user_usd = 99,  # Standard plan $99 / month, max 5 full users
-  gb_ingest_usd = 0.30  # Standard plan $0.40 / GB beyond free limits, default retention, US region
-  
+  gb_ingest_usd = 0.40 # Standard plan $0.40 / GB beyond free limits, default retention, US region
+
   # Optional: Enhanced committed minimum pricing
   # Uncomment and set these when you have minimum commitments in your contract
-  # core_user_committed_usd = 45,      # Price per committed core user
-  # full_user_committed_usd = 90,      # Price per committed full user
-  # gb_ingest_committed_usd = 0.25,    # Price per committed GB
-  
+  # core_user_committed_usd = 49,      # Price per committed core user
+  # full_user_committed_usd = 99,      # Price per committed full user
+  # gb_ingest_committed_usd = 0.40,    # Price per committed GB
+
   # Optional: Additional usage pricing (for usage above minimum commitments)
   # core_user_additional_usd = 49,     # Price per core user above minimum commitment
   # full_user_additional_usd = 99,     # Price per full user above minimum commitment
-  # gb_ingest_additional_usd = 0.30,   # Price per GB above minimum commitment
-  
+  # gb_ingest_additional_usd = 0.40,   # Price per GB above minimum commitment
+
   # Minimum commitments (0 = no minimum, uses non-commitment pricing above)
   min_core_users = 0,                # Minimum committed core users per month
   min_full_users = 0,                # Minimum committed full users per month
   min_gb_ingest = 0                  # Minimum committed GB ingest per month
-  
+
   # Optional: Synthetics pricing
   # Uncomment and set these when you have synthetics pricing in your contract
   # synthetics_checks_included = 1000000,  # Number of synthetics checks included per month
   # synthetics_additional_check_usd = 0.005,  # Price per additional synthetics check
-  
+
   # Optional: Partial month commitment handling (defaults to false)
   # prorate_minimums = false,          # true = prorate minimums for partial months, false = full commitment regardless
 }
